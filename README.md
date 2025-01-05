@@ -1,6 +1,6 @@
 # bacus.hs
 
-`bacus` is a minimal single entry accounting ledger that is fully controlled by a list of events (primitives) of only 5 types
+`bacus` is a minimal single entry accounting ledger that is fully controlled by a sequence of events of only 5 types
 (add, offset, post, copy and drop). 
 
 ## Minimal example
@@ -32,11 +32,12 @@ which may happen if larger part of accounting standards were provided as open so
 
 1. able to specify a chart of accounts;
 2. post accounting entries to accounts;
-3. properly close temporary accounts to accumulation account at period end;
-4. make ledger data available for reports before and after close;
-5. protect ledger from invalid changes after closing.
+3. properly close temporary accounts at period end, including:
+   - create sequence of account balance transfers;  
+   - make ledger data available for income statement report before and after close;
+   - block modifying temporary accounts after closing.
 
-Specifically, all these objectives can be satisfied on a ledger that is controlled by only 5 types of events. 
+Specifically, all these requirements can be satisfied on a ledger that is controlled by only 5 types of events. 
 
 ## Events (primitives)
 
@@ -56,11 +57,10 @@ The primitives are well-suited for database storage or serialisation.
 
 At accounting period end the accounts will close in the following way:
 
-1. make a copy of existing ledger to save data for income statement (this will preserve ledger data for income statement);
+1. make a copy of ledger to save data for income statement (this will preserve income and expense and their contra accounts);
 2. make closing entries for temporary accounts and transfer these account balances to an aggregation account (retained earning);
-3. drop temporary accounts from current ledger (this will ensure post-close entries may affect permanent account only).
-
-Note that the temporary accounts before closing will be persisted in a ledger copy.
+3. drop temporary accounts from current ledger - this will ensure post-close entries wil affect permanent account only
+   (note that the temporary accounts are saved in a ledger copy at step 1).
 
 ## More notes
 
