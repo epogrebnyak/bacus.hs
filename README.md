@@ -3,7 +3,7 @@
 `bacus` is a minimal single entry accounting ledger that is fully controlled by a list of events (primitives) of only 5 types
 (add, offset, post, copy and drop). 
 
-## Mimimal example
+## Minimal example
 
 ```haskell
 import Bacus (Add, Offset, Post, Copy, Drop, Debit, Credit, T5(..), runP, showTrialBalance, showChart)
