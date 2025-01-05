@@ -6,7 +6,8 @@
 ## Minimal example
 
 ```haskell
-import Bacus (Add, Offset, Post, Copy, Drop, Debit, Credit, T5(..), runP, showTrialBalance, showChart)
+import Bacus (Add, Offset, Post, Copy, Drop, Debit, Credit, T5(..),
+              runP, showTrialBalance, showChart)
 
 prims = [[Add Asset "cash", Add Equity "eq"], [Post Debit "cash" 1000, Post Credit "eq" 1000]]
 
