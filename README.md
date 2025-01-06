@@ -1,68 +1,70 @@
 # bacus.hs
+`bacus` is a minimal single-entry accounting ledger that is fully controlled by a sequence of events.
 
-`bacus` is a minimal single entry accounting ledger that is fully controlled by a sequence of events of only 5 types
-(add, offset, post, copy and drop). 
+`bacus` demonstrates a rather complete bookkeeping system that operates on 5 types of primitive commands applied to the ledger (add, offset, post, copy, and drop). More traditional compound commands (double, multiple, close) can be interpreted in terms of the primitives.
 
 ## Minimal example
 
 ```haskell
-import Bacus (Add, Offset, Post, Copy, Drop, Debit, Credit, T5(..),
-              runP, showTrialBalance, showChart)
+import Bacus
+import Bacus.Print
 
-prims = [[Add Asset "cash", Add Equity "eq"], [Post Debit "cash" 1000, Post Credit "eq" 1000]]
+prims = [[PAdd Asset "cash", PAdd Asset "inv", PAdd Equity "eq"], 
+         [PPost Debit "cash" 1000, PPost Credit "eq" 1000],
+         [PPost Debit "inv" 250, PPost Credit "cash" 250]]
 
 main :: IO ()
 main = do
-  case runP concat ps of
-    Left errs -> putStrLn $ "Errors: " + show errs
-    Right book -> do
-       print $ showTrialBalance book
-       print $ showChart book
+  let (errors, book) = runP $ concat prims
+  print errors
+  putStrLn $ showChart book "Chart of accounts"
+  putStrLn $ showTrialBalance book "Trial balance"
+  putStrLn $ showBalances book "Account balances" 
 ```
 
 ## Motivation
 
-<!--
-The corporate accounting systems are dominated by large incumbent players like Intuit (US), SAP (Germany), 1C (Russia), Tally (India).
-The prices for this software can go down and its quality can improve if there were less barriers to competition  
-which may happen if larger part of accounting standards were provided as open source data and code. 
--->
+The 'real' accounting systems by large incumbent players like Intuit (US), SAP (Germany), 1C (Russia), Tally (India), Xero (Australia) do a lot of work but are also rather difficult to manage.
 
-`bacus` aims to demonstrate that a tiny accounting system can satisfy the following requirements:
+If we focus on the bookkeeping part alone (no document handling) within one accounting period, we can get to a very, yet complete book-keeping system. Such a system should satisfy the following requirements:
 
-1. able to specify a chart of accounts;
-2. post accounting entries to accounts;
-3. properly close temporary accounts at period end, including:
-   - create sequence of account balance transfers;  
-   - make ledger data available for income statement report before and after close;
-   - block modifying temporary accounts after closing.
+1. Able to specify a chart of accounts.
+2. Post accounting entries:
+   - single,
+   - double, or
+   - multiple.
+3. Close temporary accounts at the period end, including:
+   - create a sequence of account balance transfers;
+   - make data for the income statement available before and after closing;
+   - block modifications to temporary accounts after closing.
+4. Produce financial reports.
+5. Save data for the next accounting period.
 
-Specifically, all these requirements can be satisfied on a ledger that is controlled by only 5 types of events. 
+It is a bit surprising that such a system requires records of events of just five types to be operational.
 
-## Events (primitives)
+## Primitives
 
-The state of the ledger is fully determined by a list of primitives: you can re-run the list on empty ledger to arrive to the same ledger state.
+The state of the ledger is fully determined by a list of primitives: you can re-run the list on an empty ledger to arrive at the same ledger state.
 
 These five types of events, or primitives, are:
 
-1. add an empty regular account of asset, equity, liability, income or expense type;
-3. offset a regular account with an empty contra account;
-4. post a signle entry to an account;
-5. make a copy of existing ledger before closing accounts;
-6. drop an empty temporary account from current ledger. 
+1. Add an empty regular account of asset, equity, liability, income, or expense type.
+2. Offset a regular account with an empty contra account.
+3. Post a single entry to an account.
+4. Make a copy of the existing ledger before closing accounts.
+5. Drop an empty temporary account from the current ledger.
 
-The primitives are well-suited for database storage or serialisation.
+The primitives also fit well for database storage and serialization.
 
-## Account closing 
+## Account Closing
 
-At accounting period end the accounts will close in the following way:
+At the end of the accounting period, the accounts will close in the following way:
 
-1. make a copy of ledger to save data for income statement (this will preserve income and expense and their contra accounts);
-2. make closing entries for temporary accounts and transfer these account balances to an aggregation account (retained earning);
-3. drop temporary accounts from current ledger - this will ensure post-close entries wil affect permanent account only
-   (note that the temporary accounts are saved in a ledger copy at step 1).
+1. Make a copy of the ledger to save data for the income statement — this will preserve income and expense accounts and their contra accounts.
+2. Make closing entries for temporary accounts and transfer these account balances to an aggregation account (retained earnings).
+3. Drop temporary accounts from the current ledger — this will ensure that post-close entries will affect permanent accounts only (note that the temporary accounts are saved in a ledger copy at step 1).
 
-## More notes
+## Remarks
 
-- Account names are strings that can contain either a mnemonic name or account code.
-- Processing primitives can result in an error, for example no specified account in ledger.
+- Account names are strings that can contain either a mnemonic name or an account code.
+- Processing primitives can result in an error, for example, if no specified account exists in the ledger.

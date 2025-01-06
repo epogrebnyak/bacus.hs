@@ -13,29 +13,37 @@ data SingleEntry = SingleEntry Side Name Amount deriving (Show, Eq)
 
 data TAccount = TAccount Side Amount Amount deriving (Show, Eq)
 type AccountMap = Map.Map Name TAccount
+type Balances = Map.Map Name Amount
 
 data T5 = Asset | Expense | Equity | Liability | Income deriving (Show, Eq)
 data Role = Regular T5 | Contra Name deriving (Show, Eq)
 type ChartMap = Map.Map Name Role
 
 data Book = Book {chartB :: ChartMap, ledgerB :: AccountMap, copyB :: Maybe AccountMap} deriving (Show)
+
 data ChartItem = Add T5 Name | Offset Name Name
-data Primitive = PAccount ChartItem | PPost SingleEntry | PDrop Name | PCopy
+data Primitive = PAdd T5 Name | POffset Name Name | PPost Side Name Amount | PDrop Name | PCopy
 
 data Error = NotFound Name | AlreadyExists Name | NotRegular Name | NotZero Name deriving Show
 
-includes :: Ord a => Map.Map a b -> a -> Bool
+includes :: Map.Map Name b -> Name -> Bool
 someMap `includes` name = Map.member name someMap    
 
 accountBalance :: TAccount -> Amount
 accountBalance (TAccount Debit a b) = a - b
 accountBalance (TAccount Credit a b) = b - a
 
+toBalances :: AccountMap -> Balances
+toBalances accMap = accountBalance <$> accMap 
+
+isEmpty :: TAccount -> Bool
+isEmpty tA = 0 == accountBalance tA
+
 debitAccount :: Amount -> TAccount
 debitAccount b = TAccount Debit b 0
 
 creditAccount :: Amount -> TAccount
-creditAccount b = TAccount Credit 0 b
+creditAccount = TAccount Credit 0
 
 debit :: Name -> Amount -> SingleEntry
 debit = SingleEntry Debit
@@ -68,19 +76,20 @@ sideSum :: [SingleEntry] -> Side -> Amount
 sideSum posts side = sum [a | SingleEntry s _ a <- posts, s == side]
 
 -- Post single entry to t-account
-alter :: Side -> Amount -> TAccount -> TAccount
-alter Debit amount (TAccount side d c)  = TAccount side (d+amount) c
-alter Credit amount (TAccount side d c) = TAccount side d (c+amount)
+postS :: Side -> Amount -> TAccount -> TAccount
+postS Debit amount (TAccount side d c)  = TAccount side (d+amount) c
+postS Credit amount (TAccount side d c) = TAccount side d (c+amount)
 
-showLedger :: AccountMap -> [String]
-showLedger accountMap = uncurry showTAccount <$> Map.toList accountMap
-  where
-    showTAccount :: Name -> TAccount -> String
-    showTAccount name tAccount = name ++ ": " ++ show (accountBalance tAccount)
+createAccount :: Side -> Amount -> TAccount
+createAccount Debit b = TAccount Debit b 0 
+createAccount Credit b = TAccount Credit 0 b 
 
 -- Create an empty T-account
 emptyAccount :: Side -> TAccount
 emptyAccount side = TAccount side 0 0
+
+net :: TAccount -> TAccount 
+net tA@(TAccount side _ _) = createAccount side (accountBalance tA)  
 
 -- Determine debit or credit side for a T5 account type
 which :: T5 -> Side
@@ -122,7 +131,7 @@ eitherAllowed chartMap name contraName =
     if chartMap `includes` contraName then Left (AlreadyExists contraName) else
         case Map.lookup name chartMap of 
             Just (Regular t) -> Right t
-            Just (_) -> Left $ NotRegular name
+            Just _ -> Left $ NotRegular name
             Nothing -> Left $ NotFound name 
 
 update :: Primitive -> State Book (Either Error ())
@@ -131,85 +140,45 @@ update p = do
   ledger <- gets ledgerB
   copy <- gets copyB
   case p of
-    PAccount (Add t name) ->
+    (PAdd t name) ->
       case Map.lookup name chart of
         Just _ -> return $ Left (AlreadyExists name)
         Nothing -> do
           let (chart', ledger') = updateAdd chart ledger t name
           put $ Book chart' ledger' copy
           return $ Right ()
-    PAccount (Offset name contraName) ->
+    (POffset name contraName) ->
       case eitherAllowed chart name contraName of
         Right _ -> do
           let (chart', ledger') = updateOffset chart ledger name contraName
           put $ Book chart' ledger' copy
           return $ Right ()
         Left e -> return $ Left e
-    PPost (SingleEntry side name amount) ->
+    (PPost side name amount) ->
       if not (ledger `includes` name)
         then return $ Left (NotFound name)
         else do
-          let tAccount' = alter side amount (ledger Map.! name)
+          let tAccount' = postS side amount (ledger Map.! name)
           let ledger' = Map.insert name tAccount' ledger
           put $ Book chart ledger' copy
           return $ Right ()
     PDrop name ->
       case Map.lookup name ledger of
-        Just tAccount -> if accountBalance tAccount /= 0 then 
-            return $ Left (NotZero name)
-            else do
+        Just tAccount -> if isEmpty tAccount then do 
                 let ledger' = Map.delete name ledger
                 put $ Book chart ledger' copy
                 return $ Right ()
+              else return $ Left (NotZero name)
         Nothing -> return $ Left (NotFound name)    
     PCopy -> do
       put $ Book chart ledger (Just ledger)
       return $ Right ()
 
--- Homemade monadic fold 
--- Need  t0make better use of MapM, Map_, sequence, FoldM
-updateBook :: Book -> [Primitive] -> Either Error Book
-updateBook book primitives =
-    let (result, finalBook) = runState (mapM update primitives) book
-    in case sequence result of
-        Left err -> Left err
-        Right _ -> Right finalBook
+foldPrimitives :: Book -> [Primitive] -> ([Either Error ()], Book)
+foldPrimitives b prims = runState (mapM update prims) b
 
-runP :: [Primitive] -> Either Error Book
-runP = updateBook emptyBook
+runP :: [Primitive] -> ([Either Error ()], Book)
+runP = foldPrimitives emptyBook
 
--- Collect final state from chaining of exampleStreamP    
--- Should return:
---   cash: 15
---   equity: 10
---   re: 5
-repl :: IO ()
-repl = do
-    case runP (concat exampleStreamP) of
-        Left err -> putStrLn $ "Error: " ++ show err
-        Right book -> mapM_ putStrLn (showLedger (ledgerB book))
-
-exampleStreamP :: [[Primitive]]
-exampleStreamP = [
-    -- Chart of accounts
-    [PAccount $ Add Asset "cash", 
-     PAccount $ Add Equity "equity",
-     PAccount $ Add Equity "re",
-     PAccount $ Add Income "sales",
-     PAccount $ Offset "sales" "refunds",
-     PAccount $ Add Expense "salaries"],
-    -- Business entries 
-    [PPost (debit "cash" 10), PPost (credit "equity" 10)],
-    [PPost (debit "cash" 15), PPost (credit "sales" 15)],
-    [PPost (debit "refunds" 3), PPost (credit "cash" 3)],
-    [PPost (debit "salaries" 7), PPost (credit "cash" 7)],
-    -- Make ledger copy before close
-    [PCopy],
-    -- Closing entries
-    [PPost (debit "sales" 3), PPost (credit "refunds" 3)],
-    [PPost (debit "sales" 12), PPost (credit "re" 12)],
-    [PPost (debit "re" 7), PPost (credit "salaries" 7)],
-    -- Discard temporary accounts from ledger
-    map PDrop ["sales", "refunds", "salaries"]  
-    ]
-
+-- MapM
+-- sequence

@@ -20,7 +20,7 @@ name:               bacus
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:            0.0.2
+version:            0.0.3
 
 -- A short (one-line) description of the package.
 synopsis:           An accounting ledger controlled by 5 types of events (add, offset, post, drop. copy)
@@ -59,10 +59,10 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  Bacus
+    exposed-modules:  Bacus, Bacus.Print, Example
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    -- other-modules: Main
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

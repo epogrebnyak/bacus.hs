@@ -1,8 +1,11 @@
 module Main where
 
-import qualified Bacus (repl) 
+import Bacus (runP)
+import Bacus.Print (diagnose) 
+import Example (exampleStream) 
 
 main :: IO ()
 main = do
-  putStrLn "Attempting result:"
-  Bacus.repl
+  let (errs, book) =  runP (concat exampleStream)
+  print errs
+  diagnose book
