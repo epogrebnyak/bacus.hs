@@ -1,11 +1,14 @@
 import Bacus
 import Bacus.Print
 
-prims = [[PAdd Asset "cash", PAdd Asset "inv", PAdd Equity "eq"], 
-         [PPost Debit "cash" 1000, PPost Credit "eq" 1000],
-         [PPost Debit "inv" 250, PPost Credit "cash" 250],
-         -- non-existent account
-         [PPost Debit "bank" 1]]
+prims :: [[Primitive]]
+prims =
+  [ [PAdd Asset "cash", PAdd Asset "inv", PAdd Equity "eq"],
+    [PPost Debit "cash" 1000, PPost Credit "eq" 1000],
+    [PPost Debit "isnv" 250, PPost Credit "cash" 250],
+    -- non-existent account
+    [PPost Debit "bank" 1]
+  ]
 
 main :: IO ()
 main = do
@@ -13,4 +16,4 @@ main = do
   revealErrors errors
   putStrLn $ showChart book "Chart of accounts"
   putStrLn $ showTrialBalance book "Trial balance"
-  putStrLn $ showBalances book "Account balances" 
+  putStrLn $ showBalances book "Account balances"
