@@ -263,47 +263,14 @@ updateE p = do
       put $ Book chart ledger' copy
 
     PDrop name -> do
-      tAccount <- maybe (throwError $ NotFound name) return $
-        Map.lookup name ledger
-      unless (isEmpty tAccount) $
-        throwError (NotZero name)
-      let ledger' = Map.delete name ledger
-      put $ Book chart ledger' copy
-
-    PCopy -> do
-      put $ Book chart ledger (Just ledger)
-
-updateE :: Primitive -> BookOperation ()
-updateE p = do
-  chart <- gets chartB
-  ledger <- gets ledgerB
-  copy <- gets copyB
-  case p of
-    (PAdd t name) -> do
-      when (Map.member name chart) $
-        throwError (AlreadyExists name)
-      let (chart', ledger') = updateAdd chart ledger t name
-      put $ Book chart' ledger' copy
-
-    (POffset name contraName) -> do
-      t <- liftEither $ eitherAllowed chart name contraName
-      let (chart', ledger') = updateOffset chart ledger name contraName
-      put $ Book chart' ledger' copy
-
-    (PPost side name amount) -> do
-      unless (ledger `includes` name) $
-        throwError (NotFound name)
-      let tAccount' = postS side amount (ledger Map.! name)
-      let ledger' = Map.insert name tAccount' ledger
-      put $ Book chart ledger' copy
-
-    PDrop name -> do
-      tAccount <- maybe (throwError $ NotFound name) return $
-        Map.lookup name ledger
-      unless (isEmpty tAccount) $
-        throwError (NotZero name)
-      let ledger' = Map.delete name ledger
-      put $ Book chart ledger' copy
+      case Map.lookup name ledger of
+        Nothing -> throwError $ NotFound name
+        Just acc -> do
+          return acc
+          unless (isEmpty tAccount) $
+            throwError (NotZero name)
+          let ledger' = Map.delete name ledger
+          put $ Book chart ledger' copy
 
     PCopy -> do
       put $ Book chart ledger (Just ledger)
