@@ -50,7 +50,19 @@ data ChartItem = Add T5 Name | Offset Name Name
 data Primitive = PAdd T5 Name | POffset Name Name | PPost Side Name Amount | PDrop Name | PCopy
 
 -- | Possible error conditions
-data Error = NotFound Name | AlreadyExists Name | NotRegular Name | NotZero Name deriving (Show)
+data Error
+  = NotFound Name
+  | AlreadyExists Name
+  | NotRegular Name
+  | NotZero Name
+  | NotBalanced [SingleEntry]
+
+instance Show Error where
+  show (NotFound name) = "Account not found: " ++ name
+  show (AlreadyExists name) = "Account already exists: " ++ name
+  show (NotRegular name) = "Account is not regular: " ++ name
+  show (NotZero name) = "Account is not zero: " ++ name
+  show (NotBalanced entries) = "Entries not balanced: " ++ show entries
 
 type BookOperation a = ExceptT Error (State Book) a
 
@@ -221,3 +233,24 @@ exampleOperation = do
   createState (PAdd Equity "capital")
   createState (PPost Debit "cash" 1000)
   createState (PPost Credit "capital" 1000)
+
+type EventState = ExceptT Error (State Book) [Primitive]
+
+data Event
+  = Chart ChartItem
+  | PostDouble Name Name Amount
+  | PostMultiple [SingleEntry]
+  | Transfer Name Name
+  | Close Name -- get the chain of closing [Pair] from chart
+  | Unsafe [Primitive]
+
+mkState :: Event -> BookState
+mkState (Unsafe ps) = mapM_ createState ps
+mkState (Chart (Add t n)) = createState (PAdd t n)
+mkState (Chart (Offset n c)) = createState (POffset n c)
+mkState (PostDouble d c a) = mkState $ PostMultiple [debit d a, credit c a]
+mkState (PostMultiple posts)
+  | isBalanced posts = mapM_ createState [PPost s n a | SingleEntry s n a <- posts]
+  | otherwise = throwError $ NotBalanced posts
+mkState (Transfer from to) = return () -- Not implemented
+mkState (Close acc) = return () -- Not implemented
