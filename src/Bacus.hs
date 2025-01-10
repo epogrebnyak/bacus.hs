@@ -1,5 +1,7 @@
 module Bacus where
 
+-- import Control.Monad (void)
+import Control.Monad.Except
 import Control.Monad.State (State, gets, put, runState)
 import qualified Data.Map as Map
 
@@ -15,7 +17,7 @@ data Side = Debit | Credit deriving (Show, Eq)
 -- | Two account names
 data Pair = Pair Name Name deriving (Show, Eq)
 
--- | Transaction that will debit one account and credit another with same amount
+-- | Transaction that will debit one account and credit another with the same amount
 data DoubleEntry = DoubleEntry Name Name Amount deriving (Show, Eq)
 
 -- | Transaction with a side, account name and amount
@@ -57,8 +59,9 @@ someMap `includes` name = Map.member name someMap
 
 -- | Calculate balance of a T-account
 accountBalance :: TAccount -> Amount
-accountBalance (TAccount Debit a b) = a - b
-accountBalance (TAccount Credit a b) = b - a
+accountBalance (TAccount side a b) = case side of
+  Debit -> a - b
+  Credit -> b - a
 
 -- | Convert ledger to a map of balances
 toBalances :: AccountMap -> Balances
@@ -230,48 +233,40 @@ runP = foldPrimitives emptyBook
 -- - More composable error handling with throwError
 -- - Helper functions for running operations safely
 -- - Example usage with transactions and error handling
-
-{- ExceptT Implementation Example - Add these imports at top of file:
-   import Control.Monad.Except
-   import Control.Monad.State
-
+--
+-- ExceptT Implementation Example - Add these imports at top of file:
+--   import Control.Monad.Except
+--   import Control.Monad.State
 type BookOperation a = ExceptT Error (State Book) a
-import Control.Monad (void)
 
-updateE :: Primitive -> BookOperation ()
+type BookState = BookOperation ()
+
+updateE :: Primitive -> BookState
 updateE p = do
   chart <- gets chartB
   ledger <- gets ledgerB
   copy <- gets copyB
   case p of
     (PAdd t name) -> do
-      when (Map.member name chart) $
-        throwError (AlreadyExists name)
+      when (Map.member name chart) $ throwError (AlreadyExists name)
       let (chart', ledger') = updateAdd chart ledger t name
       put $ Book chart' ledger' copy
-
     (POffset name contraName) -> do
       void $ liftEither $ eitherAllowed chart name contraName
       let (chart', ledger') = updateOffset chart ledger name contraName
       put $ Book chart' ledger' copy
-
     (PPost side name amount) -> do
-      unless (ledger `includes` name) $
-        throwError (NotFound name)
+      unless (ledger `includes` name) $ throwError (NotFound name)
       let tAccount' = postS side amount (ledger Map.! name)
       let ledger' = Map.insert name tAccount' ledger
       put $ Book chart ledger' copy
-
     PDrop name -> do
       case Map.lookup name ledger of
         Nothing -> throwError $ NotFound name
-        Just acc -> do
-          return acc
-          unless (isEmpty tAccount) $
-            throwError (NotZero name)
+        Just tAccount -> do
+          unless (isEmpty tAccount) $ throwError (NotZero name)
           let ledger' = Map.delete name ledger
           put $ Book chart ledger' copy
-
     PCopy -> do
       put $ Book chart ledger (Just ledger)
 
@@ -279,14 +274,6 @@ safeTransaction :: Name -> Name -> Amount -> BookOperation ()
 safeTransaction from to amount = do
   updateE (PPost Debit from amount)
   updateE (PPost Credit to amount)
-
-handleBookErrors :: BookOperation a -> BookOperation a
-handleBookErrors operation = catchError operation $ \err -> case err of
-  NotFound name -> do
-    throwError err
-  AlreadyExists name ->
-    throwError err
-  _ -> throwError err
 
 runBookOperation :: Book -> BookOperation a -> (Either Error a, Book)
 runBookOperation book operation = runState (runExceptT operation) book
@@ -302,13 +289,10 @@ exampleOperation = do
   updateE (PPost Debit "cash" 1000)
   updateE (PPost Credit "capital" 1000)
 
-Example usage:
+-- let result = runPE [ PAdd Asset "cash"
+--                    , PAdd Equity "capital"
+--                    , PPost Debit "cash" 1000
+--                    , PPost Credit "capital" 1000
+--                    ]
 
-let result = runPE [ PAdd Asset "cash"
-                   , PAdd Equity "capital"
-                   , PPost Debit "cash" 1000
-                   , PPost Credit "capital" 1000
-                   ]
-
-let (result, finalBook) = runBookOperation emptyBook exampleOperation
--}
+-- let (result, finalBook) = runBookOperation emptyBook exampleOperation
