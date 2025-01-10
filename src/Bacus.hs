@@ -1,6 +1,5 @@
 module Bacus where
 
--- import Control.Monad (void)
 import Control.Monad.Except
 import Control.Monad.State (State, gets, put, runState)
 import qualified Data.Map as Map
@@ -52,6 +51,11 @@ data Primitive = PAdd T5 Name | POffset Name Name | PPost Side Name Amount | PDr
 
 -- | Possible error conditions
 data Error = NotFound Name | AlreadyExists Name | NotRegular Name | NotZero Name deriving (Show)
+
+type BookOperation a = ExceptT Error (State Book) a
+
+-- Can change to BookOperation [Primitive]
+type BookState = BookOperation ()
 
 -- | Check if map includes a given name as a key
 includes :: Map.Map Name b -> Name -> Bool
@@ -174,75 +178,9 @@ eitherAllowed chartMap name contraName =
       Just _ -> Left $ NotRegular name
       Nothing -> Left $ NotFound name
 
--- | Update book state based on a primitive operation
-update :: Primitive -> State Book (Either Error ())
-update p = do
-  chart <- gets chartB
-  ledger <- gets ledgerB
-  copy <- gets copyB
-  case p of
-    (PAdd t name) ->
-      case Map.lookup name chart of
-        Just _ -> return $ Left (AlreadyExists name)
-        Nothing -> do
-          let (chart', ledger') = updateAdd chart ledger t name
-          put $ Book chart' ledger' copy
-          return $ Right ()
-    (POffset name contraName) ->
-      case eitherAllowed chart name contraName of
-        Right _ -> do
-          let (chart', ledger') = updateOffset chart ledger name contraName
-          put $ Book chart' ledger' copy
-          return $ Right ()
-        Left e -> return $ Left e
-    (PPost side name amount) ->
-      if not (ledger `includes` name)
-        then return $ Left (NotFound name)
-        else do
-          let tAccount' = postS side amount (ledger Map.! name)
-          let ledger' = Map.insert name tAccount' ledger
-          put $ Book chart ledger' copy
-          return $ Right ()
-    PDrop name ->
-      case Map.lookup name ledger of
-        Just tAccount ->
-          if isEmpty tAccount
-            then do
-              let ledger' = Map.delete name ledger
-              put $ Book chart ledger' copy
-              return $ Right ()
-            else return $ Left (NotZero name)
-        Nothing -> return $ Left (NotFound name)
-    PCopy -> do
-      put $ Book chart ledger (Just ledger)
-      return $ Right ()
-
--- | Process a list of primitives starting from initial book
-foldPrimitives :: Book -> [Primitive] -> ([Either Error ()], Book)
-foldPrimitives book prims = runState (mapM update prims) book
-
--- | Processes a list of primitives starting from an empty book
-runP :: [Primitive] -> ([Either Error ()], Book)
-runP = foldPrimitives emptyBook
-
--- | Summary of implementation below:
--- The code implements an alternative error handling approach using
--- ExceptT monad transformer
--- It provides:
--- - BookOperation type combining Error and State effects
--- - More composable error handling with throwError
--- - Helper functions for running operations safely
--- - Example usage with transactions and error handling
---
--- ExceptT Implementation Example - Add these imports at top of file:
---   import Control.Monad.Except
---   import Control.Monad.State
-type BookOperation a = ExceptT Error (State Book) a
-
-type BookState = BookOperation ()
-
-updateE :: Primitive -> BookState
-updateE p = do
+--  Create state
+createState :: Primitive -> BookState
+createState p = do
   chart <- gets chartB
   ledger <- gets ledgerB
   copy <- gets copyB
@@ -252,6 +190,7 @@ updateE p = do
       let (chart', ledger') = updateAdd chart ledger t name
       put $ Book chart' ledger' copy
     (POffset name contraName) -> do
+      -- This is a check eitgherAllowed succeeds
       void $ liftEither $ eitherAllowed chart name contraName
       let (chart', ledger') = updateOffset chart ledger name contraName
       put $ Book chart' ledger' copy
@@ -270,29 +209,15 @@ updateE p = do
     PCopy -> do
       put $ Book chart ledger (Just ledger)
 
-safeTransaction :: Name -> Name -> Amount -> BookOperation ()
-safeTransaction from to amount = do
-  updateE (PPost Debit from amount)
-  updateE (PPost Credit to amount)
+runBookState :: Book -> BookState -> (Either Error (), Book)
+runBookState book operation = runState (runExceptT operation) book
 
-runBookOperation :: Book -> BookOperation a -> (Either Error a, Book)
-runBookOperation book operation = runState (runExceptT operation) book
-
-runPE :: [Primitive] -> (Either Error (), Book)
-runPE prims = runBookOperation emptyBook $ do
-  mapM_ updateE prims
+runP :: [Primitive] -> (Either Error (), Book)
+runP prims = runBookState emptyBook $ mapM_ createState prims
 
 exampleOperation :: BookOperation ()
 exampleOperation = do
-  updateE (PAdd Asset "cash")
-  updateE (PAdd Equity "capital")
-  updateE (PPost Debit "cash" 1000)
-  updateE (PPost Credit "capital" 1000)
-
--- let result = runPE [ PAdd Asset "cash"
---                    , PAdd Equity "capital"
---                    , PPost Debit "cash" 1000
---                    , PPost Credit "capital" 1000
---                    ]
-
--- let (result, finalBook) = runBookOperation emptyBook exampleOperation
+  createState (PAdd Asset "cash")
+  createState (PAdd Equity "capital")
+  createState (PPost Debit "cash" 1000)
+  createState (PPost Credit "capital" 1000)

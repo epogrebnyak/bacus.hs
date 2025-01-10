@@ -13,7 +13,8 @@ prims =
 main :: IO ()
 main = do
   let (errors, book) = runP $ concat prims
-  revealErrors errors
+  putStrLn "Errors:"
+  mapM_ print errors
   putStrLn $ showChart book "Chart of accounts"
   putStrLn $ showTrialBalance book "Trial balance"
   putStrLn $ showBalances book "Account balances"
