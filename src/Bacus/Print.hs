@@ -1,6 +1,8 @@
 module Bacus.Print where
 
 import Bacus
+import Bacus.Types
+
 import qualified Data.Map as Map
 import Data.Either (isLeft)
 
@@ -21,7 +23,7 @@ showBalances = fromB accountBalance (\(name, b) -> name ++ ": " ++ show b)
 
 showRole :: Name -> Role -> String
 showRole name (Regular t) = name ++ ": " ++ show t
-showRole name (Contra n) = name ++ ": " ++ "contra account to " ++ n
+showRole name (Contra n) = name ++ ": " ++ "Contra account to " ++ n
 
 showChart :: Book -> String -> String
 showChart b t = unlines $ t : (two . uncurry showRole <$> Map.toList (chartB b))
@@ -37,5 +39,5 @@ diagnose :: Book -> IO ()
 diagnose b = do
   putStrLn $ showChart b "Chart of accounts:"
   putStrLn $ showTrialBalanceGross b "T-accounts:"
-  putStrLn $ showTrialBalance b "Trial balance (net):"
+  putStrLn $ showTrialBalance b "Trial balance:"
   putStrLn $ showBalances b "Account balances:"

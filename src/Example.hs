@@ -2,6 +2,7 @@ module Example where
 
 import qualified Data.Map as Map
 import Bacus
+import Bacus.Types
 
 exampleBalances :: Balances
 exampleBalances = Map.fromList [("cash", 15), ("equity", 10), ("re", 5)]
@@ -28,4 +29,28 @@ exampleStream = [
     [PPost Debit "re" 7, PPost Credit "salaries" 7],
     -- Discard temporary accounts from ledger
     map PDrop ["sales", "refunds", "salaries"]  
+    ]
+
+exampleEvents :: [Event]
+exampleEvents = [
+    -- Chart of accounts
+    Chart (Add Asset "cash"),
+    Chart (Add Equity "equity"),
+    Chart (Add Equity "re"),
+    Chart (Add Income "sales"),
+    Chart (Offset "sales" "refunds"),
+    Chart (Add Expense "salaries"),
+    -- Business entries
+    PostDouble "cash" "equity" 10,
+    PostDouble "cash" "sales" 15,
+    PostDouble "refunds" "cash" 3,
+    PostDouble "salaries" "cash" 7,
+    -- Make ledger copy before close
+    Unsafe [PCopy],
+    -- Closing entries
+    PostDouble "sales" "refunds" 3,
+    PostDouble "sales" "re" 12,
+    PostDouble "re" "salaries" 7,
+    -- Discard temporary accounts from ledger
+    Unsafe (map PDrop ["sales", "refunds", "salaries"])
     ]

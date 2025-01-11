@@ -4,70 +4,8 @@ import Control.Monad.Except
 import Control.Monad.State (State, gets, put, runState)
 import qualified Data.Map as Map
 
--- | Amount for monetary value (could be implemented as Decimal E2)
-type Amount = Int
-
--- | String identifier for accounts
-type Name = String
-
--- | Left or right side of a T-account
-data Side = Debit | Credit deriving (Show, Eq)
-
--- | Two account names
-data Pair = Pair Name Name deriving (Show, Eq)
-
--- | Transaction that will debit one account and credit another with the same amount
-data DoubleEntry = DoubleEntry Name Name Amount deriving (Show, Eq)
-
--- | Transaction with a side, account name and amount
-data SingleEntry = SingleEntry Side Name Amount deriving (Show, Eq)
-
--- | T-account has a balancing side, debit balance and credit balance
-data TAccount = TAccount Side Amount Amount deriving (Show, Eq)
-
--- | Map account names to T-accounts
-type AccountMap = Map.Map Name TAccount
-
--- | Map account names to account balances
-type Balances = Map.Map Name Amount
-
--- | Five types of regular accounts
-data T5 = Asset | Expense | Equity | Liability | Income deriving (Show, Eq)
-
--- | Represents an account's role as either regular or a contra account
-data Role = Regular T5 | Contra Name deriving (Show, Eq)
-
--- | Maps account names to their roles
-type ChartMap = Map.Map Name Role
-
--- | Book contains a chart of accounts, ledger and a ledger copy after close
-data Book = Book {chartB :: ChartMap, ledgerB :: AccountMap, copyB :: Maybe AccountMap} deriving (Show)
-
--- | Operations for adding accounts to chart
-data ChartItem = Add T5 Name | Offset Name Name
-
--- | Primitive operations that can be performed on the book
-data Primitive = PAdd T5 Name | POffset Name Name | PPost Side Name Amount | PDrop Name | PCopy
-
--- | Possible error conditions
-data Error
-  = NotFound Name
-  | AlreadyExists Name
-  | NotRegular Name
-  | NotZero Name
-  | NotBalanced [SingleEntry]
-
-instance Show Error where
-  show (NotFound name) = "Account not found: " ++ name
-  show (AlreadyExists name) = "Account already exists: " ++ name
-  show (NotRegular name) = "Account is not regular: " ++ name
-  show (NotZero name) = "Account is not zero: " ++ name
-  show (NotBalanced entries) = "Entries not balanced: " ++ show entries
-
-type BookOperation a = ExceptT Error (State Book) a
-
--- Can change to BookOperation [Primitive]
-type BookState = BookOperation ()
+import Bacus.Types
+import Bacus.Closing (closingPairs)
 
 -- | Check if map includes a given name as a key
 includes :: Map.Map Name b -> Name -> Bool
@@ -191,7 +129,7 @@ eitherAllowed chartMap name contraName =
       Nothing -> Left $ NotFound name
 
 --  Create state
-createState :: Primitive -> BookState
+createState :: Primitive -> BookOperation Primitive
 createState p = do
   chart <- gets chartB
   ledger <- gets ledgerB
@@ -201,16 +139,19 @@ createState p = do
       when (Map.member name chart) $ throwError (AlreadyExists name)
       let (chart', ledger') = updateAdd chart ledger t name
       put $ Book chart' ledger' copy
+      return p
     (POffset name contraName) -> do
       -- This is a check eitgherAllowed succeeds
       void $ liftEither $ eitherAllowed chart name contraName
       let (chart', ledger') = updateOffset chart ledger name contraName
       put $ Book chart' ledger' copy
+      return p
     (PPost side name amount) -> do
       unless (ledger `includes` name) $ throwError (NotFound name)
       let tAccount' = postS side amount (ledger Map.! name)
       let ledger' = Map.insert name tAccount' ledger
       put $ Book chart ledger' copy
+      return p
     PDrop name -> do
       case Map.lookup name ledger of
         Nothing -> throwError $ NotFound name
@@ -218,39 +159,82 @@ createState p = do
           unless (isEmpty tAccount) $ throwError (NotZero name)
           let ledger' = Map.delete name ledger
           put $ Book chart ledger' copy
+          return p
     PCopy -> do
       put $ Book chart ledger (Just ledger)
+      return p
 
-runBookState :: Book -> BookState -> (Either Error (), Book)
-runBookState book operation = runState (runExceptT operation) book
+runBookState :: BookState -> Book -> (Either Error [Primitive], Book)
+runBookState operation = runState (runExceptT operation)
 
-runP :: [Primitive] -> (Either Error (), Book)
-runP prims = runBookState emptyBook $ mapM_ createState prims
+runP :: [Primitive] -> (Either Error [Primitive], Book)
+runP prims = runBookState (mapM createState prims) emptyBook
 
-exampleOperation :: BookOperation ()
+exampleOperation :: BookOperation Primitive
 exampleOperation = do
-  createState (PAdd Asset "cash")
-  createState (PAdd Equity "capital")
-  createState (PPost Debit "cash" 1000)
+  _ <- createState (PAdd Asset "cash")
+  _ <- createState (PAdd Equity "capital")
+  _ <- createState (PPost Debit "cash" 1000)
   createState (PPost Credit "capital" 1000)
 
-type EventState = ExceptT Error (State Book) [Primitive]
-
-data Event
-  = Chart ChartItem
-  | PostDouble Name Name Amount
-  | PostMultiple [SingleEntry]
-  | Transfer Name Name
-  | Close Name -- get the chain of closing [Pair] from chart
-  | Unsafe [Primitive]
-
 mkState :: Event -> BookState
-mkState (Unsafe ps) = mapM_ createState ps
-mkState (Chart (Add t n)) = createState (PAdd t n)
-mkState (Chart (Offset n c)) = createState (POffset n c)
+mkState (Unsafe ps) = mapM createState ps
+mkState (Chart (Add t n)) = do
+  p <- createState (PAdd t n)
+  return [p]
+mkState (Chart (Offset n c)) = do
+  p <- createState (POffset n c)
+  return [p]
 mkState (PostDouble d c a) = mkState $ PostMultiple [debit d a, credit c a]
 mkState (PostMultiple posts)
-  | isBalanced posts = mapM_ createState [PPost s n a | SingleEntry s n a <- posts]
+  | isBalanced posts = mapM (\(SingleEntry s n a) -> createState (PPost s n a)) posts
   | otherwise = throwError $ NotBalanced posts
-mkState (Transfer from to) = return () -- Not implemented
-mkState (Close acc) = return () -- Not implemented
+mkState (Transfer from to) = do
+  ledger <- gets ledgerB 
+  case transfer from to ledger of
+    Right (DoubleEntry d c a) -> mkState (PostDouble d c a)
+    Left errs -> throwError $ head errs
+mkState (Close accName) = do
+   chartMap <- gets chartB 
+   case Map.lookup accName chartMap of
+        Just (Regular Equity) -> mkStateMany $ anyClose chartMap accName
+        Just _                -> throwError $ NotEquity accName        
+        Nothing               -> throwError $ NotFound accName
+  where 
+    anyClose :: ChartMap -> Name -> [Event]
+    anyClose chartMap accName = concatMap fromPair (closingPairs chartMap accName) 
+    fromPair :: Pair -> [Event]
+    fromPair (Pair a b) = [Transfer a b, Unsafe [PDrop a]]
+
+-- Transfer balance between accounts
+transfer :: Name -> Name -> AccountMap -> Either [Error] DoubleEntry
+transfer fromName toName accountMap = let lookup' n = Map.lookup n accountMap in 
+    case (lookup' fromName, lookup' toName) of
+        (Just tAcc@(TAccount side _ _), Just _) -> 
+            Right (transferEntry side fromName toName (accountBalance tAcc))
+        (Just _, Nothing) -> Left [NotFound toName]
+        (Nothing, Just _) -> Left [NotFound fromName]
+        (_, _) -> Left [NotFound toName, NotFound fromName]
+    where
+        transferEntry :: Side -> Name -> Name -> Amount -> DoubleEntry
+        transferEntry Debit from to = DoubleEntry to from
+        transferEntry Credit from to = DoubleEntry from to
+
+mkStateMany :: [Event] -> BookState
+mkStateMany events = concat <$> mapM mkState events
+
+exampleStream :: [Event]
+exampleStream = [
+  Chart (Add Asset "cash"),
+  Chart (Add Equity "equity"),
+  Chart (Add Equity "re"),
+  Chart (Add Income "sales"),
+  Chart (Offset "sales" "refunds"),
+  PostDouble "cash" "equity" 33,
+  PostDouble "cash" "sales" 500,
+  PostDouble "refunds" "cash" 100,
+  Close "re"]
+
+runE :: [Event] -> (Either Error [Primitive], Book)
+runE events = runBookState (concat <$> mapM mkState events) emptyBook
+

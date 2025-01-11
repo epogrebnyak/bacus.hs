@@ -59,7 +59,7 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  Bacus, Bacus.Print, Example
+    exposed-modules:  Bacus, Bacus.Types, Bacus.Closing, Bacus.Print, Example
 
     -- Modules included in this library but not exported.
     -- other-modules: Main
