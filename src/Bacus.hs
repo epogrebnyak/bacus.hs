@@ -1,11 +1,10 @@
 module Bacus where
 
-import Control.Monad.Except
-import Control.Monad.State (State, gets, put, runState)
-import qualified Data.Map as Map
-
-import Bacus.Types
 import Bacus.Closing (closingPairs)
+import Bacus.Types
+import Control.Monad.Except
+import Control.Monad.State (gets, put, runState)
+import qualified Data.Map as Map
 
 -- | Check if map includes a given name as a key
 includes :: Map.Map Name b -> Name -> Bool
@@ -190,51 +189,52 @@ mkState (PostMultiple posts)
   | isBalanced posts = mapM (\(SingleEntry s n a) -> createState (PPost s n a)) posts
   | otherwise = throwError $ NotBalanced posts
 mkState (Transfer from to) = do
-  ledger <- gets ledgerB 
+  ledger <- gets ledgerB
   case transfer from to ledger of
     Right (DoubleEntry d c a) -> mkState (PostDouble d c a)
     Left errs -> throwError $ head errs
 mkState (Close accName) = do
-   chartMap <- gets chartB 
-   case Map.lookup accName chartMap of
-        Just (Regular Equity) -> mkStateMany $ anyClose chartMap accName
-        Just _                -> throwError $ NotEquity accName        
-        Nothing               -> throwError $ NotFound accName
-  where 
+  chartMap <- gets chartB
+  case Map.lookup accName chartMap of
+    Just (Regular Equity) -> mkStateMany $ anyClose chartMap accName
+    Just _ -> throwError $ NotEquity accName
+    Nothing -> throwError $ NotFound accName
+  where
     anyClose :: ChartMap -> Name -> [Event]
-    anyClose chartMap accName = concatMap fromPair (closingPairs chartMap accName) 
+    anyClose chartMap accName' = concatMap fromPair (closingPairs chartMap accName')
     fromPair :: Pair -> [Event]
     fromPair (Pair a b) = [Transfer a b, Unsafe [PDrop a]]
 
 -- Transfer balance between accounts
 transfer :: Name -> Name -> AccountMap -> Either [Error] DoubleEntry
-transfer fromName toName accountMap = let lookup' n = Map.lookup n accountMap in 
-    case (lookup' fromName, lookup' toName) of
-        (Just tAcc@(TAccount side _ _), Just _) -> 
-            Right (transferEntry side fromName toName (accountBalance tAcc))
+transfer fromName toName accountMap =
+  let lookup' n = Map.lookup n accountMap
+   in case (lookup' fromName, lookup' toName) of
+        (Just tAcc@(TAccount side _ _), Just _) ->
+          Right (transferEntry side fromName toName (accountBalance tAcc))
         (Just _, Nothing) -> Left [NotFound toName]
         (Nothing, Just _) -> Left [NotFound fromName]
         (_, _) -> Left [NotFound toName, NotFound fromName]
-    where
-        transferEntry :: Side -> Name -> Name -> Amount -> DoubleEntry
-        transferEntry Debit from to = DoubleEntry to from
-        transferEntry Credit from to = DoubleEntry from to
+  where
+    transferEntry :: Side -> Name -> Name -> Amount -> DoubleEntry
+    transferEntry Debit from to = DoubleEntry to from
+    transferEntry Credit from to = DoubleEntry from to
 
 mkStateMany :: [Event] -> BookState
 mkStateMany events = concat <$> mapM mkState events
 
 exampleStream :: [Event]
-exampleStream = [
-  Chart (Add Asset "cash"),
-  Chart (Add Equity "equity"),
-  Chart (Add Equity "re"),
-  Chart (Add Income "sales"),
-  Chart (Offset "sales" "refunds"),
-  PostDouble "cash" "equity" 33,
-  PostDouble "cash" "sales" 500,
-  PostDouble "refunds" "cash" 100,
-  Close "re"]
+exampleStream =
+  [ Chart (Add Asset "cash"),
+    Chart (Add Equity "equity"),
+    Chart (Add Equity "re"),
+    Chart (Add Income "sales"),
+    Chart (Offset "sales" "refunds"),
+    PostDouble "cash" "equity" 33,
+    PostDouble "cash" "sales" 500,
+    PostDouble "refunds" "cash" 100,
+    Close "re"
+  ]
 
 runE :: [Event] -> (Either Error [Primitive], Book)
 runE events = runBookState (concat <$> mapM mkState events) emptyBook
-
