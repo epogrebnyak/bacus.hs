@@ -92,7 +92,7 @@ executable bacus
 
     -- Other library packages from which modules are imported.
     build-depends:
-        base ^>=4.17.2.1,
+        base >= 4.14 && < 5,
         bacus
 
     -- Directories containing source files.
@@ -125,7 +125,7 @@ test-suite bacus-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.17.2.1,
+        base >= 4.14 && < 5,
         containers,
         HUnit,
         bacus
