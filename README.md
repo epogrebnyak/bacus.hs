@@ -1,10 +1,10 @@
 # bacus.hs
 
-`bacus` is a minimal accounting ledger fully controlled by a sequence of events. These events are either primitive commands or compound commands built from these primitives.
+`bacus` is a minimal accounting ledger fully controlled by a sequence of events that include chart changes, accounting entries and commands for closing temporary accounts at period end. 
+These events are either primitive commands or compound commands built from these primitives.
 The state of the ledger is fully determined by a list of primitive commands: you can re-run the list on an empty ledger and arrive at the same ledger state.
-The events include chart changes, posting entries and commands for closing temporary accounts at period end. 
 
-`bacus` aims to demonstrate that a grammar of just five verbs (add, offset, post, drop, copy) is enough to express the primitive operations within the bookkeeping cycle,
+`bacus` aims to demonstrate that a grammar of just five verbs (add, offset, post, drop, copy) is enough to express the primitive operations needed for the bookkeeping cycle,
 making `bacus` akin to an assembly language for accounting.
 
 Earlier attempts include [a similar project implemented in Python](https://github.com/epogrebnyak/abacus-minimal) that helped to shape the logic of a minimal ledger.
