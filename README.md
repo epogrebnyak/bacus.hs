@@ -1,15 +1,13 @@
 # bacus.hs
 
-`bacus` is a minimal accounting ledger that is fully controlled by a sequence of events that modify 
-a chart of accounts or account balances in ledger. 
-These events are either primitive commands 
-or compound commands that can be expressed in terms of primitives.
+`bacus` is a minimal accounting ledger fully controlled by a sequence of events. These events are either primitive commands or compound commands built from these primitives.
+The state of the ledger is fully determined by a list of primitive commands: you can re-run the list on an empty ledger and arrive at the same ledger state.
+The events include chart changes, posting entries and commands for closing temporary accounts at period end. 
 
-`bacus` aims to demonstrate that operations needed for the book-keeping cycle can be expressed 
-in a grammar of just five verbs (add, offset, post, drop, copy), thus making `bacus` a kind of 
-an assembly language for accounting.
+`bacus` aims to demonstrate that a grammar of just five verbs (add, offset, post, drop, copy) is enough to express the primitive operations within the bookkeeping cycle,
+making `bacus` akin to an assembly language for accounting.
 
-Earlier attempts include a similar Python project.
+Earlier attempts include [a similar project implemented in Python](https://github.com/epogrebnyak/abacus-minimal) that helped to shape the logic of a minimal ledger.
 
 ## Minimal example
 
@@ -45,36 +43,34 @@ A small yet complete book-keeping system should satisfy the following requiremen
 
 `bacus` satisfies these requirements except for reporting - there is no operation classification for the cash flow statement.
 
-## Primitives
+## Primitive events
 
-The state of the ledger is fully determined by a list of primitives: you can re-run the list on an empty ledger to arrive at the same ledger state.
-
-These five types of events, or primitives, are:
+The five types of basic events, or primitives, are:
 
 1. Add an empty regular account of asset, equity, liability, income, or expense type.
 2. Offset a regular account with an empty contra account.
 3. Post a single entry to an account.
-4. Make a copy of the existing ledger before closing accounts.
+4. Make a copy of the existing ledger before closing temporary accounts.
 5. Drop an empty temporary account from the current ledger.
 
-It is a bit surprising that such a book-keeping requires just these types of events to be operational. The primitives also fit well for database storage and serialization.
+The primitives also fit well for database storage and serialization.
 
 ## Compound events
 
-The following events can be expressed in from of a list of primitives:
+The following events can be expressed in as a list of primitives:
 
 - double entry;
 - multiple entry;
 - transfer account balance from one account to another;
-- close temporary accounts and transfer retained earnings to accumulation account.  
+- close temporary accounts and transfer retained earnings to an accumulation account.  
 
 ## Account closing
 
 At the end of the accounting period, the accounts will close in the following order.
 
 1. Make a copy of the ledger to save data for the income statement — this will preserve income and expense accounts and their contra accounts for the income statement.
-2. Make closing entries for temporary accounts and transfer account balances to an income summary or aggregation account (retained earnings).
-3. Drop temporary accounts from the current ledger — this will ensure that post-close entries will affect permanent accounts only. Note that the temporary accounts are saved in a ledger copy at step 1.
+2. Make closing entries for temporary accounts and transfer account balances to an income summary account (retained earnings).
+3. Drop temporary accounts from the current ledger to ensure that post-close entries will affect permanent accounts only. Note that the temporary accounts are saved in a ledger copy at step 1.
 
 ## Remarks
 
