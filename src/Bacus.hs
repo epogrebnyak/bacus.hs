@@ -163,6 +163,7 @@ createState p = do
       put $ Book chart ledger (Just ledger)
       return p
 
+-- https://hackage.haskell.org/package/mtl-2.3.1/docs/Control-Monad-Except.html#g:2
 runBookState :: BookState -> Book -> (Either Error [Primitive], Book)
 runBookState operation = runState (runExceptT operation)
 
