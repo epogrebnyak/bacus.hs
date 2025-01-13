@@ -1,7 +1,15 @@
 # bacus.hs
-`bacus` is a minimal single-entry accounting ledger that is fully controlled by a sequence of events.
 
-`bacus` demonstrates a rather complete bookkeeping system that operates on 5 types of primitive commands applied to the ledger (add, offset, post, copy, and drop). More traditional compound commands (double, multiple, close) can be interpreted in terms of the primitives.
+`bacus` is a minimal accounting ledger that is fully controlled by a sequence of events that modify 
+a chart of accounts or account balances in ledger. 
+These events are either primitive commands 
+or compound commands that can be expressed in terms of primitives.
+
+`bacus` aims to demonstrate that operations needed for the book-keeping cycle can be expressed 
+in a grammar of just five verbs (add, offset, post, drop, copy), thus making `bacus` a kind of 
+an assembly language for accounting.
+
+Earlier attempts include a similar Python project.
 
 ## Minimal example
 
@@ -22,25 +30,20 @@ main = do
   putStrLn $ showBalances book "Account balances" 
 ```
 
-## Motivation
+## Requirements 
 
-The 'real' accounting systems by large incumbent players like Intuit (US), SAP (Germany), 1C (Russia), Tally (India), Xero (Australia) do a lot of work but are also rather difficult to manage.
-
-If we focus on the bookkeeping part alone (no document handling) within one accounting period, we can get to a very, yet complete book-keeping system. Such a system should satisfy the following requirements:
+A small yet complete book-keeping system should satisfy the following requirements:
 
 1. Able to specify a chart of accounts.
-2. Post accounting entries:
-   - single,
-   - double, or
-   - multiple.
-3. Close temporary accounts at the period end, including:
+2. Post accounting entries (single, double or multiple) 
+3. Close temporary accounts at the period end:
    - create a sequence of account balance transfers;
    - make data for the income statement available before and after closing;
    - block modifications to temporary accounts after closing.
 4. Produce financial reports.
 5. Save data for the next accounting period.
 
-It is a bit surprising that such a system requires records of events of just five types to be operational.
+`bacus` satisfies these requirements except for reporting - there is no operation classification for the cash flow statement.
 
 ## Primitives
 
@@ -54,15 +57,24 @@ These five types of events, or primitives, are:
 4. Make a copy of the existing ledger before closing accounts.
 5. Drop an empty temporary account from the current ledger.
 
-The primitives also fit well for database storage and serialization.
+It is a bit surprising that such a book-keeping requires just these types of events to be operational. The primitives also fit well for database storage and serialization.
 
-## Account Closing
+## Compound events
 
-At the end of the accounting period, the accounts will close in the following way:
+The following events can be expressed in from of a list of primitives:
 
-1. Make a copy of the ledger to save data for the income statement — this will preserve income and expense accounts and their contra accounts.
-2. Make closing entries for temporary accounts and transfer these account balances to an aggregation account (retained earnings).
-3. Drop temporary accounts from the current ledger — this will ensure that post-close entries will affect permanent accounts only (note that the temporary accounts are saved in a ledger copy at step 1).
+- double entry;
+- multiple entry;
+- transfer account balance from one account to another;
+- close temporary accounts and transfer retained earnings to accumulation account.  
+
+## Account closing
+
+At the end of the accounting period, the accounts will close in the following order.
+
+1. Make a copy of the ledger to save data for the income statement — this will preserve income and expense accounts and their contra accounts for the income statement.
+2. Make closing entries for temporary accounts and transfer account balances to an income summary or aggregation account (retained earnings).
+3. Drop temporary accounts from the current ledger — this will ensure that post-close entries will affect permanent accounts only. Note that the temporary accounts are saved in a ledger copy at step 1.
 
 ## Remarks
 
