@@ -1,20 +1,19 @@
 import Bacus
 import Bacus.Print
+import Bacus.Types
 
-prims :: [[Primitive]]
+prims :: [Primitive]
 prims =
-  [ [PAdd Asset "cash", PAdd Asset "inv", PAdd Equity "eq"],
-    [PPost Debit "cash" 1000, PPost Credit "eq" 1000],
-    [PPost Debit "isnv" 250, PPost Credit "cash" 250],
-    -- non-existent account
-    [PPost Debit "bank" 1]
+  [ PAdd Asset "cash",
+    PAdd Equity "equity",
+    PPost Debit "cash" 1000,
+    PPost Credit "equity" 1000
   ]
 
 main :: IO ()
 main = do
-  let (errors, book) = runP $ concat prims
-  putStrLn "Errors:"
-  mapM_ print errors
+  let (errors, book) = runP prims
+  either print (const (pure ())) errors
   putStrLn $ showChart book "Chart of accounts"
   putStrLn $ showTrialBalance book "Trial balance"
   putStrLn $ showBalances book "Account balances"
