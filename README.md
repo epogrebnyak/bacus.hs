@@ -1,5 +1,7 @@
 # bacus.hs
 
+[![Haskell](https://github.com/epogrebnyak/bacus.hs/actions/workflows/haskell.yml/badge.svg)](https://github.com/epogrebnyak/bacus.hs/actions/workflows/haskell.yml)
+
 `bacus` is an experimental accounting ledger fully controlled by a sequence of events
 that change chart of accounts, post accounting entries and close temporary accounts
 at period end.
