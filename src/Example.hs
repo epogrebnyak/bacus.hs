@@ -3,6 +3,7 @@ module Example where
 import qualified Data.Map as Map
 import Bacus
 import Bacus.Types
+import Bacus.Event (Primitive(..), Event(..))
 
 exampleBalances :: Balances
 exampleBalances = Map.fromList [("cash", 15), ("equity", 10), ("re", 5)]
@@ -54,3 +55,16 @@ exampleEvents = [
     -- Discard temporary accounts from ledger
     Unsafe (map PDrop ["sales", "refunds", "salaries"])
     ]
+
+exampleStream2 :: [Event]
+exampleStream2 =
+  [ Chart (Add Asset "cash"),
+    Chart (Add Equity "equity"),
+    Chart (Add Equity "re"),
+    Chart (Add Income "sales"),
+    Chart (Offset "sales" "refunds"),
+    PostDouble "cash" "equity" 33,
+    PostDouble "cash" "sales" 500,
+    PostDouble "refunds" "cash" 100,
+    Close "re"
+  ]

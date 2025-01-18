@@ -1,9 +1,8 @@
 module Main where
 
-import Bacus (runP, runE, exampleStream)
-import Bacus.Types (Event)
+import Bacus.Event (Event, runP, runE)
+import Example (exampleStream2)
 import Bacus.Print (diagnose) 
--- import Example (exampleStream) 
 
 whatHappened :: [Event] -> IO ()
 whatHappened events = do  
@@ -13,7 +12,7 @@ whatHappened events = do
 
 
 main :: IO ()
-main =  whatHappened exampleStream
+main =  whatHappened exampleStream2
 -- do 
 --  let (errs, book) =  runP (concat exampleStream)
 --  print errs

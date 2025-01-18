@@ -46,14 +46,6 @@ data Book = Book {chartB :: ChartMap, ledgerB :: AccountMap, copyB :: Maybe Acco
 -- | Operations for adding accounts to chart
 data ChartItem = Add T5 Name | Offset Name Name
 
--- | Primitive operations that can be performed on the book
-data Primitive = PAdd T5 Name 
-               | POffset Name Name 
-               | PPost Side Name Amount 
-               | PDrop Name 
-               | PCopy
-               deriving Show
-
 -- | Possible error conditions
 data Error
   = NotFound Name
@@ -63,6 +55,7 @@ data Error
   | NotZero Name
   | NotBalanced [SingleEntry]
 
+-- | Error messages
 instance Show Error where
   show (NotFound name) = "Account not found: " ++ name
   show (AlreadyExists name) = "Account already exists: " ++ name
@@ -70,15 +63,3 @@ instance Show Error where
   show (NotEquity name) = "Equity account required: " ++ name
   show (NotZero name) = "Account is not zero: " ++ name
   show (NotBalanced entries) = "Entries not balanced: " ++ show entries
-
-type BookOperation a = ExceptT Error (State Book) a
-
-type BookState = BookOperation [Primitive]
-
-data Event
-  = Chart ChartItem
-  | PostDouble Name Name Amount
-  | PostMultiple [SingleEntry]
-  | Transfer Name Name
-  | Close Name -- get the chain of closing [Pair] from chart
-  | Unsafe [Primitive]
