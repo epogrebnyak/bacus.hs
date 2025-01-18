@@ -1,7 +1,7 @@
 # bacus.hs
 
 `bacus` is an experimental accounting ledger fully controlled by a sequence of events
-that include chart changes, accounting entries and commands for closing temporary accounts
+that change chart of account, post accounting entries and close temporary accounts
 at period end.
 
 `bacus` aims to demonstrate that a grammar of just five verbs (add, offset, post, drop, copy)
