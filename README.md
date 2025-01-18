@@ -1,7 +1,7 @@
 # bacus.hs
 
 `bacus` is an experimental accounting ledger fully controlled by a sequence of events
-that change chart of account, post accounting entries and close temporary accounts
+that change chart of accounts, post accounting entries and close temporary accounts
 at period end.
 
 `bacus` aims to demonstrate that a grammar of just five verbs (add, offset, post, drop, copy)
@@ -35,19 +35,19 @@ main = do
 
 ## Requirements
 
-A small yet complete book-keeping system should satisfy the following requirements:
+A book-keeping system should satisfy the following minimal requirements:
 
 1. Able to specify a chart of accounts.
 2. Post accounting entries (single, double or multiple)
 3. Close temporary accounts at the period end:
    - create a sequence of account balance transfers;
    - make data for the income statement available before and after closing;
-   - block modifications to temporary accounts after closing.
+   - disallow chnaging temporary accounts after closing.
 4. Produce financial reports.
 5. Save data for the next accounting period.
 
-`bacus` satisfies these requirements except for reporting - there is no operation
-classification for the cash flow statement.
+`bacus` satisfies these requirements except for the reporting part 
+(no operation classification for the cash flow statement).
 
 ## Primitive events
 
@@ -69,22 +69,23 @@ The primitives also fit well for database storage and serialization.
 
 ## Compound events
 
-The following events can be expressed in as a list of primitives:
+The following events can be expressed as primitives:
 
-- double entry;
-- multiple entry;
+- posting double or multiple entry,
 - transfer account balance from one account to another;
-- close temporary accounts and transfer retained earnings to an accumulation account.
+- close temporary accounts and transfer balances to retained earnings.
 
 ## Account closing
 
 At the end of the accounting period, the accounts will close in the following order.
 
 1. Make a copy of the ledger to save data for the income statement — this will preserve income and expense accounts and their contra accounts for the income statement.
+
 2. Make closing entries for temporary accounts and transfer account balances to an income summary account (retained earnings).
+
 3. Drop temporary accounts from the current ledger to ensure that post-close entries will affect permanent accounts only. Note that the temporary accounts are saved in a ledger copy at step 1.
 
 ## Remarks
 
 - Account names are strings that can contain either a mnemonic name or an account code.
-- Processing primitives can result in an error, for example, if no specified account exists in the ledger.
+- Processing primitives may result in an error, for example, if no specified account exists in the ledger.
